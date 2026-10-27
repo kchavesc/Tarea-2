@@ -1,0 +1,207 @@
+---
+title: "Tarea 2"
+author: "Kenneth Chaves Cruz"
+format: html
+embed-resources: true
+toc: true
+lang: es 
+---
+# Introducción
+El análisis de la temperatura del aire en diferentes estaciones meteorológicas facilita la comparación de las condiciones observadas entre regiones.
+
+En este trabajo se analizan datos preliminares de temperatura máxima y mínima del 17 de agosto de 2026, correspondientes a estaciones meteorológicas de Costa Rica. Los datos fueron obtenidos del Instituto Meteorológico Nacional (IMN) e incluyen el nombre y la ubicación de cada estación, la región climática, las temperaturas máxima y mínima en grados Celsius y la hora de toma de los datos (IMN, s.f).
+
+A partir de esta información se busca responder las siguientes preguntas:
+
+1. ¿Cómo se distribuyen las temperaturas máximas registradas entre las estaciones meteorológicas?
+
+2. ¿Cómo varía la temperatura máxima promedio entre las regiones climáticas representadas en los datos?
+
+3. ¿Qué relación existe entre la temperatura máxima y la temperatura mínima registradas en cada estación?
+
+Para responderlas se utilizarán una tabla interactiva y gráficos que permitan explorar y comparar los registros. Los resultados describen las estaciones y la fecha incluidas en el archivo; por lo tanto, no representan promedios climatológicos.
+
+# Importación y preparación de los datos
+
+## Carga de paquetes
+Se cargan los paquetes necesarios para importar, explorar y analizar
+los datos, y para crear tablas y gráficos interactivos.
+```{r}
+#| label: carga-paquetes-datos
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(sf)
+library(plotly)
+library(DT)
+library(readxl)
+library(ggplot2)
+
+```
+## Importacion de los datos
+Para poder cargar los datos se tuvo que realizar unos pasos adicionales a los realizados en clase ya que no tenia un archivo CSV
+y si convertia el archivo original a CSV daba un error ya que se perdian datos.
+```{r}
+#| label: carga-datos
+#| message: false
+#| warning: false
+
+url <- "https://raw.githubusercontent.com/kchavesc/Tarea-2/main/temp_trd.xlsx"
+# Debido a que el archivo original es en formato .xlsx use el codigo a continuación 
+# para poder usar ese archivo, ya que si lo pasaba a .CSV perdia formato y se hacia un 
+# desastre
+archivo_temporal <- tempfile(fileext = ".xlsx")
+download.file(url, archivo_temporal, mode = "wb")
+temperatura <- read_excel(archivo_temporal, skip = 3)
+# head me permite explorar las primeras lineas del archivo.
+head(temperatura)
+```
+# Tabla interactiva
+La siguiente tabla presenta las temperaturas máximas y mínimas
+registradas en las estaciones meteorológicas, junto con su ubicación,
+región climática y hora de toma de datos. La información corresponde
+al 17 de agosto de 2026 y tiene carácter preliminar.
+```{r}
+#| label: datatable
+# El siguiente código crea la tabla interactiva y me permite asignar los 
+# nombres en español, ya que por defecto los muestra en inglés 
+datatable(
+  temperatura,
+  rownames = FALSE,
+  options = list(
+    language = list(
+      search = "Buscar:",
+      lengthMenu = "Mostrar _MENU_ registros",
+      info = "Mostrando _START_ a _END_ de _TOTAL_ registros",
+      infoEmpty = "No hay registros disponibles",
+      infoFiltered = "(filtrado de _MAX_ registros)",
+      zeroRecords = "No se encontraron registros",
+      paginate = list(
+        previous = "Anterior",
+        `next` = "Siguiente"
+      )
+    )
+  )
+) |> # Las siguientes lineas permiten definir la cantidad de decimales
+  formatRound(
+    columns = c("Longitud", "Latitud"),
+    digits = 3,
+    mark = ".",
+    dec.mark = ","
+  ) |>
+  formatRound(
+    columns = c("Temperatura Máxima (°C)", "Temperatura Mínima (°C)"),
+    digits = 1,
+    mark = ".",
+    dec.mark = ","
+  )
+```
+
+
+# Gráficos
+Se generan un histograma, un gráfico de barras y uno de dispersión interactivo.
+
+## Histograma
+
+El siguiente histograma muestra la distribución de las temperaturas máximas registradas en las estaciones meteorológicas del país. 
+
+
+```{r}
+#| label: Histograma de temperatura
+
+ggplot(temperatura, aes(x = `Temperatura Máxima (°C)`)) +
+  geom_histogram(binwidth = 2, boundary = 0, fill = "red", color = "black") +
+  labs(
+    title = "Distribución de la temperatura máxima por estación",
+    x = "Temperatura máxima (°C)",
+    y = "Número de estaciones",
+    caption = "Fuente: Instituto Meteorológico Nacional."
+  )
+```
+
+Se observa que poco más de 20 estaciones registraron temperaturas máximas entre 30 y 32 °C, mientras que alrededor de 17 presentaron temperaturas entre los 32 - 34 °C.
+
+## Gráfico de barras
+El siguiente gráfico de barras muestra el promedio de la temperatura máxima por región climática.
+```{r}
+#| label: promedio-regiones
+# El siguiente código agrupa las regiones climáticas y calcula el valor 
+#promedio de la tempet\ratura máxima
+promedio_regiones <- temperatura |>
+  group_by(`Región Climática`) |>
+  summarize(
+    temperatura_promedio = mean(`Temperatura Máxima (°C)`, na.rm = TRUE)
+  )
+```
+Una vez obtenido el promedio se procede a gráficar los datos.
+```{r}
+
+#| label: gráfico de barras
+ggplot(
+  promedio_regiones,
+  aes(x = `Región Climática`, y = temperatura_promedio)
+) +
+  geom_col(fill = "steelblue", color = "black") +
+  labs(
+    title = "Temperatura máxima promedio por región climática",
+    x = "Región climática",
+    y = "Temperatura máxima promedio (°C)",
+    caption = "Fuente: Instituto Meteorológico Nacional."
+  )
+```
+Se aprecia claramente como la temperatura máxima promedio más alta se presenta en el Pacífico Norte y el Valle Central y Caribe Sur con valores más frescos.
+
+## Dispersión interactivo
+ El suguiente es un gráfico de dispersión interactivo. Cada punto representaría una estación; al colocar el cursor encima, se mostrarían su nombre, región y temperaturas máxima y mínima.
+ 
+```{r}
+#| label: fig-dispersion-temperatura
+
+grafico_dispersion <- ggplot(
+  temperatura,
+  aes(
+    x = `Temperatura Mínima (°C)`,
+    y = `Temperatura Máxima (°C)`,
+    text = paste( # aqui se define el nombre de las etiquetas y el valor 
+                 # que va a mostrar
+      "Estación:", Estación,
+      "<br>Región:", `Región Climática`,
+      "<br>Temperatura mínima:", `Temperatura Mínima (°C)`, "°C",
+      "<br>Temperatura máxima:", `Temperatura Máxima (°C)`, "°C"
+    )
+  )
+) +
+  geom_point(color = "steelblue", size = 2, alpha = 0.8) +
+  labs(
+    title = "Temperaturas máxima y mínima por estación",
+    x = "Temperatura mínima (°C)",
+    y = "Temperatura máxima (°C)",
+    caption = "Fuente: Instituto Meteorológico Nacional."
+  )
+
+ggplotly(grafico_dispersion, tooltip = "text") |>
+  config(displaylogo = FALSE)
+```
+
+Se aprecia como la relación entre máxima y mínima es más alta en el Pacifico Norte y más baja en las zonas montañosas.
+
+# Conclusiones
+El análisis de los datos preliminares de temperatura del 17 de agosto de 2026 permitió comparar las condiciones registradas en las estaciones meteorológicas incluidas en el archivo.
+
+En cuanto a la distribución de la temperatura máxima, el histograma muestra que la mayor cantidad de estaciones registró valores entre 30°C - 32°C. Por otro lado, las temperaturas máximas menos frecuentes se encontraron en los extremos del histograma.
+
+Al comparar las regiones climáticas, Pacífico Norte presentó la temperatura máxima promedio más alta, con alrededor de los 34°C, mientras que el Valle Central registró el promedio más bajo, con alrededor de los 27°C. Estos promedios corresponden a las estaciones disponibles en cada región.
+
+Finalmente, el gráfico de dispersión muestra que la relación entre máximas y mínimas es mayor en el Pacífico Norte y menor en las zonas montañosas.
+
+Como limitaciones, los datos corresponden a una única fecha y tienen carácter preliminar. Además, la cantidad y distribución de las estaciones pueden ser diferentes entre regiones. Por ello, los resultados describen únicamente los registros analizados y no deben interpretarse como promedios climatológicos ni como una caracterización completa de cada región.
+
+# Referencias
+Instituto Meteorológico Nacional. (s. f.). *Instituto Meteorológico Nacional de Costa Rica.*\
+https://www.imn.ac.cr/web/imn/inicio
+
+# Declaración de uso de IA
+Para la elaboración de este trabajo se utilizó ChatGPT como apoyo en la explicación y corrección de código en R, principalmente para la importación de los datos desde GitHub ya que los datos no se tenían en formato CSV y en clase no se vio como cargar datos de otro tipo de archivo. También se utilizó para depurar código de la tabla interactiva y la creación de los gráficos. Adicionalmente se utilizó para orientar la estructura del documento y mejorar la redacción de algunos apartados.
+
+El código y los resultados fueron revisados por el autor, quien es responsable de su comprensión, interpretación y presentación final.
